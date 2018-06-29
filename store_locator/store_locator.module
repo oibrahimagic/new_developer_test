@@ -1,0 +1,358 @@
+<?php 
+
+/**
+ * 
+ * This module is where you need to write your custom importer.
+ * The info file includes a css file on every page
+ * 
+ * There is a menu hook below which creates a page http://drupalinterview.local/store_locator/import
+ * There is a form defined already with a box to enter the CSV data
+ * 
+ * You should write your submit handler in the store_locator_import_submit function
+ * 
+ */
+
+/**
+ * Implements hook_menu
+ *
+ * Setting up our menu options
+ * @return array
+ *
+ */
+function store_locator_menu()
+{
+    $items['store_locator/import'] = array(
+        'title' => 'Import Stores',
+        'description' => 'Import Stores in to the system',
+        'page callback' => 'drupal_get_form',
+        'page arguments' => array('store_locator_import'),
+        'access callback' => TRUE,
+    );
+    
+    $items['store_locator/list'] = array(
+        'title' => 'List Stores',
+        'description' => 'View all stores',
+        'page callback' => 'store_locator_view_all',
+        'access callback' => TRUE,
+    );
+	
+	$items['store_locator/my_list'] = array(
+        'title' => 'List Stores',
+        'description' => 'View all stores',
+        'page callback' => 'my_store_locator_view_all',
+        'access callback' => TRUE,
+    );
+    
+    $items['store_locator/store/%'] = array(
+        /*'title' => 'Store Details',*/
+        'description' => 'View a single store',
+        'page callback' => 'store_locator_view_store',
+        'page arguments' => array(2),
+        'access callback' => TRUE,
+    );
+    
+    return $items;
+}
+
+/**
+ * This function is where your form is built
+ * 
+ * @param array $form
+ * @param array $form_state
+ */
+function store_locator_import($form, &$form_state)
+{
+    $form['notes'] = array(
+        '#type' => 'markup',
+        '#markup' => '<h2>Paste your CSV data in to the text area below</h2>',
+    );
+    $form['csv_data'] = array(
+        '#title' => t("CSV Data"),
+        '#type' => 'textarea',
+        '#description' => 'Paste your CSV data in here.',
+    );
+    
+    $form['submit'] = array(
+        '#type' => 'submit',
+        '#value' => t('Update'),
+    );
+    
+    return $form;
+}
+
+/**
+ * This is the function that will process the data submitted in the form 
+ * Process your import in here
+ * 
+ * @param array $form
+ * @param array $form_state
+ */
+function store_locator_import_submit($form, &$form_state)
+{
+    //the submitted form data will be in here
+    //dpm($form_state);
+    //The CSV data will be in $form_state['values']['csv_data']
+    //dpm($form_state['values']['csv_data']);
+    
+    //HINT: Use str-getcsv or fgetcsv to parse the string in to an array
+    //http://php.net/manual/en/function.str-getcsv.php http://php.net/manual/en/function.fgetcsv.php
+	
+	$csv = str_getcsv($form_state['values']['csv_data'], "\n");
+	$header = array_shift($csv); 
+	//dpm($csv);
+	foreach($csv as $row)
+	{		
+		$row_array = str_getcsv($row, ',', '"');
+		dpm($row_array);
+		$query = new EntityFieldQuery();
+		$query->entityCondition('entity_type', 'node')
+			  ->entityCondition('bundle', 'store')
+			  ->propertyCondition('title', $row_array[0])
+			  ->fieldCondition('field_phone_number', 'value', $row_array[2], '=');
+		$result = $query->execute();   
+		if (count($result) == 0)
+		{
+			$node = new stdClass();
+			$node->title = $row_array[0];
+			$node->type = "store";
+			$node->status = 1;
+			$node->field_address['und'][0]['value'] = $row_array[1];
+			$node->field_phone_number['und'][0]['value'] = $row_array[2];
+			$node->field_store_manager['und'][0]['value'] = $row_array[3];
+			$node->field_store_type['und'][0]['value'] = $row_array[4];
+			$node->field_latitude['und'][0]['value'] = $row_array[5];
+			$node->field_longitude['und'][0]['value'] = $row_array[6];
+			node_save($node);
+		}
+	}
+}
+
+
+
+
+/**
+ * Functions for the Non Drupal task below
+ */
+
+
+
+/*
+ * Do your store lookup in this function and just return the HTML
+ * Access this function by visiting /store_locator/list
+ * Create links to /store_locator/store/{id} for the individual store pages
+ */
+function store_locator_view_all()
+{	
+	// get all store nodes from db
+	$nodeType = "store";
+	$storeNids = db_query("SELECT nid FROM {node} WHERE type = :type", array(':type' => $nodeType))
+		->fetchCol();
+	$html = '<table class = "table">
+					<tr>
+						<th>Store name</th>
+						<th>Store manager</th>
+						<th>Store phone</th>
+						<th>Store details</th>
+					</tr>';
+					
+	foreach ($storeNids as $storeNid) 
+	{
+		$store = node_load($storeNid);
+		$storeName = get_store_name ($store);
+		$storeManager = get_store_manager ($store);
+		$storeAddress = get_store_phone_number ($store);
+		$storeDetailsPage = '<a href = "/store_locator/store/' . $storeNid .'" target = "_blank"> View full details</a>';
+		
+		$html .= '<tr>
+					<td>' . $storeName . '</td><td>' . $storeManager . '</td><td>' . $storeAddress . '</td><td>' . $storeDetailsPage . '</td></tr>';
+	}
+	$html .= '</table>';
+    return $html;
+}
+
+/*
+ * Nodes in this function are retrived using view and
+ * they are also displayed by  view
+ * Access this function by visiting /store_locator/my_list
+ * Create links to /store_locator/store/{id} for the individual store pages
+ */
+function my_store_locator_view_all()
+{	
+	// view will be used to get all stores from the system
+	$allStoresViewName = 'store_locator';
+	$allStoresViewDisplay = 'page';
+
+	$allStoresView = views_get_view($allStoresViewName);
+	if ( is_object($allStoresView) ) 
+	{ 
+		$allStoresView->set_display($allStoresViewDisplay);
+		$allStoresView->pre_execute();
+		return $allStoresView->render($allStoresViewDisplay);
+	}
+}
+
+/*
+ * The store ID is passed straight in to this function
+ */
+function store_locator_view_store($storeId)
+{
+	// load store using $storeId
+	$store = node_load($storeId);
+	$storeName = get_store_name ($store);
+	$storeType = get_store_type ($store);
+	$storeManager = get_store_manager ($store);
+	$storeAddress = get_store_address ($store);
+	$storeLatitude = get_store_latitude ($store);
+	$storeLongitude = get_store_longitude ($store);
+	$storeOpeningTimes = get_store_opening_times ($store);
+	
+	
+	// create google maps link 
+	$googleMapsLink = 'https://www.google.com/maps/?q=' . $storeLatitude . ',' . $storeLongitude;
+	$htmlForGoogleMaps = '<a href = "' . $googleMapsLink . '" target = "_blank"> Google Maps Link for Our Store</a>';
+	
+	// check if Google Maps contains latitude and longitude, if not
+	// do not show it on page
+	if ( $googleMapsLink == 'https://www.google.com/maps/?q=,') 
+	{
+		$htmlForGoogleMaps = '<div> Google Map LInk for this store is unavailable, we will provide it soon. </div>'; 
+	}
+	
+	
+	$html = '<div class = "row">
+				<div class = "page-header page-custom-header"> 
+					<h1>' . $storeName . ' - ' . $storeType . '</h1>
+				</div>
+				<div class = "col-md-7 col-xs-12">
+					<div id = "store_manager">
+						<h3> Store Manager </h3>
+						<div class = "font-18">' . $storeManager . '</div>
+					</div>
+					<div id = "store_address">
+						<h3> Store Address </h3>
+						<div>' . $storeAddress . '</div>
+					</div>
+					<div id = "store_google_maps_link">
+						<h3> Google Maps Link </h3>
+						<div>' . $htmlForGoogleMaps . '</div>
+					</div>
+				</div>
+				<div class = "col-md-5 col-xs-12">
+					<div id = "store_opening_times">
+						<h3> Opening Times</h3>
+						<div class = "custom-pre"><pre>' . $storeOpeningTimes . '</pre></div>
+					</div>
+				</div>';
+	return $html;
+}
+
+/*
+ * Get store name from store node
+ */
+function get_store_name ($store) {
+	if ( isset ( $store->title )) 
+	{
+		$storeName = $store->title;
+	} else {
+		$storeName = "";
+	}
+	return $storeName;
+}
+
+/*
+ * Get store type from store node
+ */
+function get_store_type ($store) {
+	if ( isset ( $store->field_store_type['und'][0]['value'] )) 
+	{
+		$storeType = $store->field_store_type['und'][0]['value'];
+	} else 
+	{
+		$storeType = "";
+	}
+	return $storeType;
+}
+
+/*
+ * Get store manager from store node
+ */
+function get_store_manager($store) {
+	if ( isset ( $store->field_store_manager['und'][0]['value'] )) 
+	{
+		$storeManager = $store->field_store_manager['und'][0]['value'];
+	} else 
+	{
+		$storeManager = "";
+	}
+	return $storeManager;
+}
+
+/*
+ * Get store address from store node
+ */
+function get_store_address($store) {
+	if ( isset ( $store->field_address['und'][0]['value'] )) 
+	{
+		$storeAddress = $store->field_address['und'][0]['value'];
+	} else 
+	{
+		$storeAddress = "";
+	}
+	return $storeAddress;
+}
+
+/*
+ * Get store latitude from store node
+ */
+function get_store_latitude($store) {
+	if ( isset ( $store->field_latitude['und'][0]['value'] )) 
+	{
+		$storeLatitude = $store->field_latitude['und'][0]['value'];
+	} else 
+	{
+		$storeLatitude = "";
+	}
+	return $storeLatitude;
+}
+
+/*
+ * Get store longitude from store node
+ */
+function get_store_longitude($store) {	
+	if ( isset ( $store->field_longitude['und'][0]['value'] )) 
+	{
+		$storeLongitude = $store->field_longitude['und'][0]['value'];
+	} else 
+	{
+		$storeLongitude = "";
+	}
+	return $storeLongitude;
+}
+
+/*
+ * Get store opening times from store node
+ */
+function get_store_opening_times($store) {	
+	if ( isset ( $store->field_opening_times['und'][0]['value'] )) 
+	{
+		$storeOpeningTimes = $store->field_opening_times['und'][0]['value'];
+	} else 
+	{
+		$storeOpeningTimes = "";
+	}
+	return $storeOpeningTimes;
+}
+
+/*
+ * Get store opening times from store node
+ */
+function get_store_phone_number($store) {	
+	if ( isset ( $store->field_phone_number['und'][0]['value'] )) 
+	{
+		$storePhoneNumber = $store->field_phone_number['und'][0]['value'];
+	} else 
+	{
+		$storePhoneNumber = "";
+	}
+	return $storePhoneNumber;
+}

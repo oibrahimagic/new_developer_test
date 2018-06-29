@@ -1,0 +1,62 @@
+/*
+ * Add your CSS Styles in here.
+ * This CSS File is included on every page by default
+ */
+.page-custom-header {
+	padding-left: 15px;
+}
+
+.custom-pre pre {
+    display: block;
+    margin: 0 0 10px;
+    font-size: 14px;
+	font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    word-break: break-all;
+    word-wrap: break-word;
+    background-color: #ffffff;
+    border: 0px solid #ccc;
+    border-radius: 4px;
+}
+
+table {
+    font-family: arial, sans-serif;
+    border-collapse: collapse;
+    width: 100%;
+}
+
+td, th {
+    border: 1px solid #dddddd;
+    text-align: left;
+    padding: 10px;
+}
+
+tr:nth-child(even) {
+    background-color: #dddddd;
+}
+
+#store_manager {
+	border: 1px solid gray;
+	padding: 15px;
+	padding-top: 0px;
+}
+
+#store_address {
+	border: 1px solid gray;
+	padding: 15px;
+	padding-top: 0px;
+	margin-top: 15px;
+	 
+}
+
+#store_google_maps_link {
+	border: 1px solid gray;
+	padding: 15px;
+	padding-top: 0px;
+	margin-top: 15px;
+}
+
+#store_opening_times {
+	border: 1px solid gray;
+	padding: 15px;
+	padding-top: 0px;
+}
