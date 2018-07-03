@@ -1,4 +1,5 @@
 <?php 
+
 /**
  * 
  * This module is where you need to write your custom importer.
@@ -98,11 +99,9 @@ function store_locator_import_submit($form, &$form_state)
 	
 	$csv = str_getcsv($form_state['values']['csv_data'], "\n");
 	$header = array_shift($csv); 
-	//dpm($csv);
 	foreach($csv as $row)
 	{		
 		$row_array = str_getcsv($row, ',', '"');
-		dpm($row_array);
 		$query = new EntityFieldQuery();
 		$query->entityCondition('entity_type', 'node')
 			  ->entityCondition('bundle', 'store')
@@ -111,27 +110,54 @@ function store_locator_import_submit($form, &$form_state)
 		$result = $query->execute();   
 		if (count($result) == 0)
 		{
+			$storeCity = $row_array[0];
+			$storeAddress = $row_array[1];
+			$storePhoneNumber = $row_array[2];
+			$storeManager = $row_array[3];
+			$storeType = $row_array[4];
+			$storeLatitude = $row_array[5];
+			$storeLongitude = $row_array[6];
+			
+			
 			$node = new stdClass();
-			$node->title = $row_array[0];
+			$node->title = $storeCity;
 			$node->type = "store";
 			$node->status = 1;
-			$node->field_address['und'][0]['value'] = $row_array[1];
-			$node->field_phone_number['und'][0]['value'] = $row_array[2];
-			$node->field_store_manager['und'][0]['value'] = $row_array[3];
-			$node->field_store_type['und'][0]['value'] = $row_array[4];
-			$node->field_latitude['und'][0]['value'] = $row_array[5];
-			$node->field_longitude['und'][0]['value'] = $row_array[6];
+			$node->field_address['und'][0]['value'] = $storeAddress;
+			$node->field_phone_number['und'][0]['value'] = $storePhoneNumber;
+			$node->field_store_manager['und'][0]['value'] = $storeManager;
+			$node->field_store_type['und'][0]['value'] = $storeType;
+			
+			if($storeLatitude =='' && $storeLongitude =='')
+			{
+				// Get lat long from google
+				$storeFullAddress = $storeCity . ' ' . $storeAddress;
+				$latlong = get_lat_long_by_address($storeFullAddress);
+				$map = explode(",", $latlong);
+				$storeLatitude = $map[0];
+				$storeLongitude = $map[1];    
+			}
+			$node->field_latitude['und'][0]['value'] = $storeLatitude;
+			$node->field_longitude['und'][0]['value'] = $storeLongitude;
 			node_save($node);
 		}
 	}
 }
 
-
-
-
-/**
- * Functions for the Non Drupal task below
+/*
+ * Get store latitude and longitude by address
  */
+function get_lat_long_by_address($address)
+{
+
+    $address = str_replace(" ", "+", $address);
+
+    $json = file_get_contents("http://maps.google.com/maps/api/geocode/json?address=$address&sensor=false&region=");
+    $json = json_decode($json);
+    $lat = $json->{'results'}[0]->{'geometry'}->{'location'}->{'lat'};
+    $long = $json->{'results'}[0]->{'geometry'}->{'location'}->{'lng'};
+    return $lat.','.$long;
+}
 
 
 
